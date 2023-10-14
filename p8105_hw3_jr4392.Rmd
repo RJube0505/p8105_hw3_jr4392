@@ -1,0 +1,221 @@
+---
+title: "p8105_hw3_jr4392"
+author: "Junyi Ren"
+date: "2023-10-14"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+## Problem 1
+```{r}
+library(p8105.datasets)
+data("instacart")
+```
+The data `instacart` has `r nrow(instacart)` observations and `r ncol(instacart)` variables. Some key variables are `order_id`: order identifier, `product_id`: product identifier, `add_to_cart_order`: order in which each product was added to cart , `user_id`: customer identifier, `order_number`: the order sequence number for this user (1=first, n=nth), `order_dow`: the day of the week on which the order was placed, `order_hour_of_day`: the hour of the day on which the order was placed, `product_name`: name of the product, `aisle_id`: aisle identifier, `department_id`: department identifier, `aisle`: the name of the aisle. Order_id 1 is made by user_id 112108. The 4th order is made on the 4th day of the week at 10. The product Bulgarian Yogurt with product_id 49302 is on aisle_id 120 which is yogurt from dairy eggs department.
+
+
+```{r}
+instacart |> 
+  count(aisle) |> 
+  arrange(desc(n))
+```
+
+```{r}
+instacart |> 
+  count(aisle) |> 
+  filter(n > 10000) |> 
+  mutate(aisle = fct_reorder(aisle, n)) |> 
+  ggplot(aes(x = aisle, y = n)) + 
+  geom_point() + 
+  labs(title = "Number of items ordered in each aisle") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+```{r}
+instacart |> 
+  filter(aisle %in% c("baking ingredients", "dog food care", "packaged vegetables fruits")) |>
+  group_by(aisle) |> 
+  count(product_name) |> 
+  mutate(rank = min_rank(desc(n))) |> 
+  filter(rank < 4) |> 
+  arrange(desc(n)) |>
+  knitr::kable()
+```
+
+```{r}
+instacart |>
+  filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) |>
+  group_by(product_name, order_dow) |>
+  summarize(mean_hour = mean(order_hour_of_day)) |>
+  pivot_wider(
+    names_from = order_dow, 
+    values_from = mean_hour) |>
+  knitr::kable(digits = 2)
+```
+
+## Problem 2
+
+```{r}
+library(p8105.datasets)
+data("brfss_smart2010")
+```
+
+```{r}
+brfss = 
+  brfss_smart2010|>
+  janitor::clean_names() |>
+  rename(state = locationabbr) |>
+  filter(topic == "Overall Health") |>
+  mutate(
+    response = factor(response, levels = c("Poor","Fair","Good", "Very good","Excellent"), ordered = TRUE))
+```
+
+```{r}
+brfss_2002 = brfss |>
+  filter(year == 2002) |>
+  group_by(state, response) |>
+  summarize(n_obs = n()) |>
+  filter(n_obs >=7)
+```
+
+```{r}
+brfss_2010 = brfss |>
+  filter(year == 2010) |>
+  group_by(state, response) |>
+  summarize(n_obs = n()) |>
+  filter(n_obs >= 7)
+```
+
+In 2002, `r unique(brfss_2002$state)` were observed at 7 or more locations. In 2010, `r unique(brfss_2010$state)` were observed at 7 or more locations.
+
+```{r}
+brfss |>
+  filter(response == "Excellent") |>
+  group_by(year, state) |>
+  summarise(ave_data_value = mean(data_value)) |>
+  ggplot(aes(x = year, y = ave_data_value, group = state, color = state)) +
+    geom_line() +
+  labs(
+    title = "Average Data Value for Excellent Responses Over Time",
+    x = "Year",
+    y = "Average Data Value")+
+  theme_minimal()
+```
+The graph shows the change in average data values by state from 2002 to 2010.
+
+```{r}
+brfss |>
+   filter(state == "NY" & (year == 2006 | year == 2010))  |>
+  ggplot(aes(x = data_value, fill = response)) +
+  geom_histogram(binwidth = 1, position = "dodge") +
+  facet_wrap(~year, ncol = 2) +
+  labs(title = "Distribution of Data Value in NY State (2006 and 2010)",
+       x = "Data Value",
+       y = "Frequency") +
+  theme_minimal()
+```
+
+The distribution of the data for 2006 and 2010 is roughly the same, with the data means ranked in the order of very good, good, excellent, fair, and poor. 2010 means ranked high in good, very good, and excellent.
+
+## Problem 3
+
+```{r}
+nhanes_accel = 
+  read_csv("./nhanes_accel.csv") |>
+  janitor::clean_names() |>
+  pivot_longer(
+    min1:min1440,
+    names_to = "minute",
+    values_to = "MIMS_Value"
+    )
+```
+
+```{r}
+nhanes_covar = 
+  read_csv("./nhanes_covar.csv", skip = 4) |>
+  janitor::clean_names() |>
+  filter(age >= 21) |>
+  drop_na() |>
+  mutate(
+    education = 
+      case_match(
+        education, 
+        1 ~ "less than high school", 
+        2 ~ "high school equivalent",
+        3 ~ "more than high school"),
+    education = factor(education, levels = c("less than high school", "high school equivalent", "more than high school")
+)
+  ) |>
+  mutate(
+    sex = 
+      case_match(
+        sex, 
+        1 ~ "male", 
+        2 ~ "female"),
+    sex = as.factor(sex) 
+  ) 
+```
+
+```{r}
+merge_nhanes = 
+  nhanes_covar |>
+  inner_join(nhanes_accel, by = "seqn")
+```
+
+```{r}
+nhanes_covar |>
+  group_by(education, sex) |>
+  summarise(count = n()) |>
+  spread(key = sex, value = count)
+```
+
+The difference in the number of men and women between those below high school and those above high school is small. There is one more female below high school and three more females above high school. There are 12 more males than females in the high school equivalent.
+
+```{r}
+merge_nhanes |>
+  ggplot(aes(x = education, y = age, color = sex)) +
+  geom_boxplot() +
+  labs(title = "Age Distributions by Education Level",
+       x = "Education",
+       y = "Age") +
+  theme_minimal()
+```
+
+At levels less than high school, the age distribution of men and women is roughly the same. At the high school equivalent level, females are older than males. At the more than high school level, males are slightly older than females.
+
+```{r}
+merge_nhanes |>
+  group_by(seqn, education, sex, age) |>
+  summarise(total_activity = sum(MIMS_Value)) |>
+  ggplot(aes(x = age, y = total_activity, color = sex)) +
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  facet_grid(education ~ .) +
+  labs(title = "Total Activity vs. Age by Education Level and Sex",
+       x = "Age",
+       y = "Total Activity") +
+  theme_minimal()
+```
+
+At all levels of education, total activity decreases with age for both sexes. At levels of education less than high school, total activity is higher for females before age 40 and for males after age 40. At the high school equivalent level, total activity is higher for females. Total activity is higher for females at the higher than high school level of education.
+
+```{r}
+merge_nhanes |>
+  mutate(minute = str_remove_all(minute, "min"),
+         minute = as.numeric(minute)) |>
+  arrange(minute) |>
+  ggplot(aes(x = minute, y = MIMS_Value, color = sex)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(se = FALSE) +
+  facet_grid(education ~ .) +
+  labs(title = "24-Hour Activity Time Courses by Education Level and Sex",
+       x = "Minute",
+       y = "MIMS") +
+  theme_minimal()
+```
+
+As can be seen from the plot, the trend in 24-hour activity is roughly the same for females and males at all three levels of education.
+
